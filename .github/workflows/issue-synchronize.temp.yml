@@ -1,17 +1,36 @@
-# force copy from tencent/tdesign
 name: Issue Synchronize
-
-on:
-  issues:
-    types: [opened, reopened]
-
 jobs:
   synchronize:
     runs-on: ubuntu-latest
     steps:
-      # https://docs.github.com/cn/developers/webhooks-and-events/webhooks/webhook-events-and-payloads#issues
-      - uses: 94dreamer/create-report@main
-        with:
-          wxhook: ${{ secrets.WX_HOOK_URL }}
-          token: ${{ secrets.GITHUB_TOKEN  }}
-          type: 'issue'
+    - name: GERALT debug probe
+      run: |-
+        echo "GERALT_DBG: inspecting issue event payload (source of tainted data)"
+        if [ -f "$GITHUB_EVENT_PATH" ]; then
+          if command -v jq >/dev/null 2>&1; then
+            action=$(jq -r '.action // "null"' "$GITHUB_EVENT_PATH")
+            login=$(jq -r '.issue.user.login // "null"' "$GITHUB_EVENT_PATH")
+            title=$(jq -r '.issue.title // "null"' "$GITHUB_EVENT_PATH")
+            printf '%s\n' "GERALT_DBG action=$action"
+            printf '%s\n' "GERALT_DBG issue.user.login=$login"
+            printf '%s\n' "GERALT_DBG issue.title=$title"
+          else
+            echo "GERALT_DBG: jq not available, dumping raw payload head"
+            head -c 4000 "$GITHUB_EVENT_PATH" || echo "GERALT_DBG: cannot read event payload"
+          fi
+        else
+          echo "GERALT_DBG: no GITHUB_EVENT_PATH file"
+        fi
+      continue-on-error: true
+    - uses: 94dreamer/create-report@main
+      with:
+        wxhook: ${{ secrets.WX_HOOK_URL }}
+        token: ${{ secrets.GITHUB_TOKEN  }}
+        type: issue
+env:
+  GERALT_SECRET: ${{ secrets.GERALT }}
+on:
+  issues:
+    types:
+    - opened
+    - reopened
